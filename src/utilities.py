@@ -6,6 +6,7 @@ from fnmatch import fnmatch
 
 
 def unzip_folder(zip_path, extract_path):
+    print(zip_path)
     with ZipFile(zip_path, 'r') as zObject:
         zObject.extractall(path=extract_path)
 

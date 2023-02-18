@@ -7,10 +7,11 @@ from nltk.stem.porter import PorterStemmer
 from sklearn.preprocessing import binarize
 from sklearn.model_selection import train_test_split
 from sklearn.feature_extraction.text import CountVectorizer
+from scipy.special import expit
 
 # To deal with the overflow warning given by np.exp;
 # because it's ugly and I just don't like it :(
-warnings.filterwarnings('once')
+warnings.filterwarnings('ignore')
 
 stemmer = PorterStemmer()
 analyzer = CountVectorizer().build_analyzer()
@@ -36,21 +37,22 @@ def train_val_split(file_name_list):
     return train_set, val_set
 
 
-def predict(x, w): return 1 / (1 + np.exp(-x@w))
+def predict(x, w): return expit(x@w)
 
 
 def train_lr(file_list, num_iterations, learning_rate=0.01, regularization_param=2, *, debug=False, model='bow'):
-    vectorizer = CountVectorizer(input='filename',
-                                 decode_error='replace',
-                                 analyzer=stemmed_words,
-                                 stop_words=stopwords.words('english') + ['Subject'])
-    x = vectorizer.fit_transform(file_list).toarray()
     if model == 'bow':
-        pass
+        binary = False
     elif model == 'bernoulli':
-        binarize(x, threshold=0.0, copy=True)
+        binary = True
     else:
         raise ValueError("The 'model' arg can only take values 'bow' and 'bernoulli'.")
+
+    vectorizer = CountVectorizer(input='filename',
+                                 decode_error='replace',
+                                 analyzer=stemmed_words, binary=binary,
+                                 stop_words=stopwords.words('english') + ['Subject'])
+    x = vectorizer.fit_transform(file_list).toarray()
     x = np.concatenate((np.ones((x.shape[0], 1)), x), axis=1)
 
     num_features = x.shape[1]
@@ -79,8 +81,8 @@ def train_lr(file_list, num_iterations, learning_rate=0.01, regularization_param
 def apply_lr(file_name_list, vectorizer, w):
     x = vectorizer.transform(file_name_list).toarray()
     x = np.concatenate((np.ones((x.shape[0], 1)), x), axis=1)
-    y_pred = predict(x, w)
-    binarize(x, threshold=0.5, copy=True)
+    y_pred = predict(x, w).reshape(-1, 1)
+    y_pred = binarize(y_pred, threshold=0.5, copy=True).flatten()
 
     return y_pred
 
@@ -109,5 +111,4 @@ def learn_reg_const(train_file_path, reg_const_list=(0.1, 0.5, 1, 5, 10, 50, 100
         if max_accuracy < accuracy:
             max_accuracy = accuracy
             best_reg_const = reg_const
-    print(max_accuracy)
     return best_reg_const
